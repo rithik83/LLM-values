@@ -1,0 +1,1803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Mechanical Turk Interface</title>
+    <meta http-equiv='Content-Type' content='text/html; charset=UTF-8'/>
+    <script type='text/javascript' src='https://s3.amazonaws.com/mturk-public/externalHIT_v1.js'></script>
+    <!-- CSS Styling -->
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet"/>
+    <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/seedrandom/2.4.4/seedrandom.min.js"></script>
+    <script>
+        function getWorkerId() {
+            var paramPairs = window.location.search.substring(1).split("&");
+            for (i in paramPairs) {
+                var pair = paramPairs[i].split("=");
+                if (pair[0] === "workerId") {
+                    return pair[1];
+                }
+            }
+            return "not on mturk";
+        }
+
+        function testContainerSize() {
+            var width = window.innerWidth;
+            var height = window.innerHeight;
+            if (width < 1024 || height < 570) {
+                $('#size-error-modal').modal('show');
+            } else {
+                $('#size-error-modal').modal('hide');
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --bottom-height: 55px;
+        }
+
+        html, body, form, #main {
+            height: auto;
+        }
+
+        kbd {
+            background-color: #747474;
+        }
+
+        #main {
+            width: 95%;
+            padding-left: 0;
+            padding-right: 0;
+            font-size: 11pt;
+        }
+
+        /* Example */
+
+        .toggle-cursor {
+            cursor: pointer;
+        }
+
+        .example-table > tbody tr:hover,
+        .example-table > tbody tr:hover tr {
+            background-color: #eee;
+        }
+
+        .example-table > thead > tr > th:nth-child(1),
+        .example-table > tbody > tr > td:nth-child(1) {
+            width: 270px;
+        }
+
+        .example-table > thead > tr > th:nth-child(3),
+        .example-table > tbody > tr > td:nth-child(3) {
+            width: 300px;
+        }
+
+        .example-table .table > tbody > tr:first-child > td {
+            border: none;
+        }
+
+        .example-table .table > tbody > tr > td:first-child {
+            width: 50%;
+        }
+
+        .example-card {
+            display: inline-block;
+            padding-left: 2px;
+            padding-right: 4px;
+            margin-bottom: 3px;
+            border: 1px solid #ccc;
+            border-radius: .25rem;
+        }
+
+        .example-card.positive {
+            background-color: #bcf5bc;
+        }
+
+        .example-card.negative {
+            background-color: #f5aeae;
+        }
+
+        .example-card .selection-mark {
+            vertical-align: middle;
+            margin-top: 2px;
+            margin-bottom: 2px;
+        }
+
+        /* Task */
+
+        #tasks {
+            height: calc(100vh - var(--bottom-height));
+        }
+
+        .task {
+            display: none;
+            grid-template-rows: 375px calc(100% - 375px);
+            grid-template-columns: 1fr 1fr;
+            grid-column-gap: 10px;
+            height: 100%;
+        }
+
+        @media only screen and (max-width: 1700px) {
+            .task {
+                grid-template-rows: 50% 50%;
+            }
+        }
+
+        .task.active {
+            display: grid;
+        }
+
+        .task .value-suggestions {
+            grid-column-end: span 2;
+        }
+
+        .task .panel-body {
+            height: calc(100% - 20px - 1.5em);
+            max-height: calc(100% - 20px - 1.5em);
+            overflow-y: auto;
+        }
+
+        .task .reason-panel .panel-body {
+            display: flex;
+            flex-direction: row;
+            padding-bottom: 5px;
+        }
+
+        .task .reason-panel .reason-panel-content {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+        }
+
+        .task .reason-panel .reason-panel-content > div:first-child {
+            flex-grow: 1;
+        }
+
+        .task .reason-panel .reason-panel-content .value-comments-container {
+            flex-shrink: 0;
+        }
+
+        .task .value-suggestions .value-suggestions-list {
+            display: flex;
+            flex-direction: column;
+            flex-wrap: wrap;
+            align-content: flex-start;
+            padding-right: 20px;
+            overflow-x: auto;
+            height: calc(100% - 34px - 10px);
+            margin-bottom: 10px;
+        }
+
+        .task .comments {
+            height: 34px;
+        }
+
+        .task .value-suggestions-list .value-suggestion {
+            width: calc(20% + 0.3125em - 1px);
+            min-height: 26px;
+            display: flex;
+        }
+
+        .task .value-suggestions-list .value-suggestion:nth-child(2n+1) {
+            background-color: #D6D6D6;
+        }
+
+        .task .value-suggestions-list .value-suggestion.positive {
+            background-color: #bcf5bc;
+        }
+
+        .task .value-suggestions-list .value-suggestion.negative {
+            background-color: #f5aeae;
+        }
+
+        .value-highlight,
+        .task .value-suggestions-list .value-suggestion.active {
+            background-color: #77acd9;
+        }
+
+        .value-highlight {
+            padding-left: 2px;
+            padding-right: 2px;
+        }
+
+        /* Value suggestion spans */
+
+        .task .value-suggestions-list .value-suggestion > span {
+            display: block;
+            padding: 5px 2px;
+            vertical-align: middle;
+        }
+
+        .task .value-suggestions-list .value-suggestion > span:first-child {
+            display: flex;
+            justify-content: center;
+            min-width: 32px;
+            height: 26px;
+            margin: auto 0;
+            padding-top: 2px;
+            padding-bottom: 2px;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        .task .value-suggestions-list .value-suggestion > span:nth-child(2) {
+            flex-grow: 1;
+            cursor: pointer;
+        }
+
+        .task .value-suggestions-list .value-suggestion > span:nth-child(3),
+        .task .value-suggestions-list .value-suggestion > span:nth-child(4) {
+            display: flex;
+            align-items: center;
+        }
+
+        kbd[data-value-selection="Y"] {
+            background-color: #73e973;
+            border-color: #73e973;
+        }
+
+        kbd[data-value-selection="N"] {
+            background-color: lightcoral;
+            border-color: lightcoral;
+        }
+
+        .task .value-suggestions-list .value-suggestion.positive > span:nth-child(3) kbd,
+        .task .value-suggestions-list .value-suggestion > span:nth-child(3) > kbd:hover,
+        .task .value-suggestions-list .value-suggestion > span:nth-child(3) > kbd.hover,
+        .task .value-suggestions-list .value-suggestion.negative > span:nth-child(4) kbd,
+        .task .value-suggestions-list .value-suggestion > span:nth-child(4) > kbd:hover,
+        .task .value-suggestions-list .value-suggestion > span:nth-child(4) > kbd.hover {
+            box-shadow: inset 1px 1px 1px black;
+            cursor: pointer;
+        }
+
+        .task .value-suggestions-list .value-suggestion > span:nth-child(5) {
+            padding-left: 1.25em;
+            padding-right: 0;
+            background-color: white;
+        }
+
+        .value-comments-container {
+            height: 34px;
+        }
+
+        .comments.value-comments:not(.active) {
+            display: none;
+        }
+
+        /* Bottom */
+
+        #bottom-box {
+            height: var(--bottom-height);
+        }
+
+        /* Pagination */
+
+        .pagination-container {
+            display: flex;
+            justify-content: center;
+            column-gap: 25px;
+        }
+
+        .pagination {
+            margin-top: 0;
+            margin-bottom: 0;
+        }
+
+        #pagination .completed:not(.active) a {
+            background-color: #cce9cc;
+        }
+
+        #pagination .completed:not(.active) a:hover {
+            background-color: #b4dfb4;
+            /* http://www.0to255.com/cce9cc -2 */
+            border-color: #b4dfb4;
+        }
+
+        #pagination .visited:not(.completed):not(.active) a {
+            background-color: #b43f07;
+            border-color: #b43f07;
+            color: #ffffff;
+        }
+
+        #pagination .visited:not(.completed):not(.active) a:hover {
+            background-color: #933406;
+            /* http://www.0to255.com/b43f07 -2 */
+            border-color: #933406;
+        }
+
+        /* Additional css icons */
+
+        /* Based on: https://stackoverflow.com/questions/21968531/how-to-draw-a-checkmark-tick-using-css#comment52517276_21968532 */
+        .example-card .selection-mark,
+        .task .value-suggestions-list .value-suggestion.positive > span:first-child > span,
+        .task .value-suggestions-list .value-suggestion.negative > span:first-child > span {
+            display: inline-block;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            -ms-transform: rotate(45deg); /* IE 9 */
+            -webkit-transform: rotate(45deg); /* Chrome, Safari, Opera */
+            transform: rotate(45deg);
+        }
+
+        .example-card.positive .selection-mark,
+        .task .value-suggestions-list .value-suggestion.positive > span:first-child > span {
+            background-color: #73e973;
+        }
+
+        .example-card.negative .selection-mark,
+        .task .value-suggestions-list .value-suggestion.negative > span:first-child > span {
+            background-color: lightcoral;
+        }
+
+        .example-card .selection-mark:before,
+        .example-card .selection-mark:after,
+        .task .value-suggestions-list .value-suggestion.positive > span:first-child > span:before,
+        .task .value-suggestions-list .value-suggestion.positive > span:first-child > span:after,
+        .task .value-suggestions-list .value-suggestion.negative > span:first-child > span:before,
+        .task .value-suggestions-list .value-suggestion.negative > span:first-child > span:after {
+            content: "";
+            position: absolute;
+            background-color: white;
+        }
+
+        .example-card.positive .selection-mark:before,
+        .task .value-suggestions-list .value-suggestion.positive > span:first-child > span:before {
+            width: 3px;
+            height: 9px;
+            left: 11px;
+            top: 6px;
+        }
+
+        .example-card.positive .selection-mark:after,
+        .task .value-suggestions-list .value-suggestion.positive > span:first-child > span:after {
+            width: 3px;
+            height: 3px;
+            left: 8px;
+            top: 12px;
+        }
+
+        .example-card.negative .selection-mark:before,
+        .task .value-suggestions-list .value-suggestion.negative > span:first-child > span:before {
+            width: 3px;
+            height: 9px;
+            left: 10px;
+            top: 7px;
+        }
+
+        .example-card.negative .selection-mark:after,
+        .task .value-suggestions-list .value-suggestion.negative > span:first-child > span:after {
+            width: 9px;
+            height: 3px;
+            left: 7px;
+            top: 10px;
+        }
+    </style>
+</head>
+<body>
+<form name='mturk_form' method='post' id='mturk_form' action='https://www.mturk.com/mturk/externalSubmit'>
+    <input type='hidden' value='' name='assignmentId' id='assignmentId'/>
+    <script type="text/javascript">
+        // Setup script
+        var hit = "${hit}";
+
+        const annotatorId = getWorkerId();
+        Math.seedrandom(annotatorId);
+        const taskArray = [
+            {
+                "id": "A25159",
+                "topic": "We should cancel pride parades",
+                "stance": "against",
+                "text": "People have the right to express themselves."
+            },
+            {
+                "id": "A25034",
+                "topic": "We should abolish zoos",
+                "stance": "against",
+                "text": "Zoos provide a platform for people to understand the natural and animal world."
+            },
+            {
+                "id": "A25175",
+                "topic": "We should ban cosmetic surgery for minors",
+                "stance": "in favor of",
+                "text": "Surgery can be dangerous and must never be undertaken without a medical need, minors also do not need to be told there is something wrong about them that needs fixing."
+            },
+            {
+                "id": "A25157",
+                "topic": "We should ban missionary work",
+                "stance": "in favor of",
+                "text": "Missionary work can sometimes do more harm than good - for example, if religious missionaries discourage the use of condoms in a place where HIV is the main cause of death."
+            },
+            {
+                "id": "A25035",
+                "topic": "Entrapment should be legalized",
+                "stance": "in favor of",
+                "text": "Sometimes the only way to capture a criminal is to use entrapment as career criminals have learned ways to avoid legal prosecution."
+            },
+        ];
+        var numTasksPerHit = taskArray.length;
+    </script>
+
+    <!-- Browser width too small! -->
+    <div class="modal fade" data-backdrop="static" data-keyboard="false" id="size-error-modal" role="dialog"
+         tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content alert-danger">
+                <div class="modal-header">
+                    <h4 class="modal-title">Browser size too small!</h4>
+                </div>
+                <div class="modal-body">
+                    <p>
+                        Your browser window is too small to work on this HIT. Please enlarge your browser window.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script type="text/javascript">
+        window.addEventListener("resize", testContainerSize);
+        document.addEventListener("DOMContentLoaded", testContainerSize);
+    </script>
+
+    <!-- Require javascript! -->
+    <div id="require-javascript" class="container">
+        <div class="panel panel-danger">
+            <div class="panel-heading">You need to enable JavaScript to work on this HIT. If you have JavaScript
+                enabled,
+                this notice will disappear once the task is ready. If it does not disappear, you can not work on this
+                HIT.
+            </div>
+        </div>
+    </div>
+    <script type="text/javascript">
+        document.addEventListener("DOMContentLoaded", function () {
+            document.querySelector("#require-javascript").style.display = "none";
+            document.querySelector("#main").style.display = "box";
+        });
+    </script>
+
+    <!-- main -->
+    <div id="main" class="container">
+
+        <!-- Instructions -->
+        <div class="panel panel-primary">
+            <div class="panel-heading">
+                Instructions
+            </div>
+            <div class="panel-body">
+                <ul>
+                    <li>Select for each of 5 arguments which of 54 justifications one could provide for it.</li>
+                    <li>Typically, one could provide at least 1 and not more than 5 of these justifications for an
+                        argument. If you would select more than 10 justifications for an argument, reduce your selection
+                        to the most fitting ones.
+                    </li>
+                    <li>Make sure you understand the examples.</li>
+                    <li>Read the argument and justification. Select <kbd data-value-selection="Y">Y</kbd>es (someone
+                        could provide the justification for the argument, even if you may disagree) or <kbd
+                                data-value-selection="N">N</kbd>o (the justification makes no sense for the argument).
+                        Leave a comment on the justification if you are unsure about it. Use the comment box at the
+                        bottom for comments on the argument.
+                    </li>
+                    <li>Save time: Select Yes/No using keyboard keys <kbd data-value-selection="Y">Y</kbd>/<kbd
+                            data-value-selection="N">N</kbd> or <kbd data-value-selection="Y">&larr;</kbd>/<kbd
+                            data-value-selection="N">&rarr;</kbd>. Move between justifications using <kbd>&uarr;</kbd>
+                        and <kbd>&darr;</kbd> or between arguments while pressing <kbd>ctrl</kbd> or <kbd>cmd</kbd>.
+                    </li>
+                    <li>You have to have JavaScript enabled to work on this task.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="panel panel-primary">
+            <div class="panel-heading toggle-cursor" data-toggle="collapse" data-target="#examples-body2">
+                Examples - Please read them carefully (click here to hide/see)
+            </div>
+            <div id="examples-body2" class="panel-body collapse in">
+                <p>Example arguments <u>against</u> "Social media should be banned".</p>
+                <table class="table example-table">
+                    <thead>
+                    <tr>
+                        <th>Argument</th>
+                        <th>Justifications</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <td>
+                            We have to be honest. Social media does not make people polite. But it makes our lives
+                            easier and more interesting.
+                        </td>
+                        <td>
+                            Select all justifications one could provide:
+                            <span class="example-card positive"><span class="selection-mark"></span> have a comfortable life</span>
+                            (from "easier lives"),
+                            <span class="example-card positive"><span
+                                    class="selection-mark"></span> have pleasure</span> (also from "easier lives"),
+                            <span class="example-card positive"><span class="selection-mark"></span> have an exciting life</span>
+                            (from "more interesting"),
+                            <span class="example-card positive"><span class="selection-mark"></span> have a varied life</span>
+                            (also from "more interesting").
+                            But do <b>not</b> select justifications for concessions
+                            <nobr>(<span class="example-card negative"><span
+                                    class="selection-mark"></span> be polite</span>)
+                            </nobr>
+                            or empty phrases
+                            <nobr>(<span class="example-card negative"><span
+                                    class="selection-mark"></span> be honest</span>,
+                            </nobr>
+                            <nobr><span class="example-card negative"><span
+                                    class="selection-mark"></span> be logical</span>,
+                            </nobr>
+                            <span class="example-card negative"><span class="selection-mark"></span> have an objective view</span>
+                            for "We have to be honest").
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            Social media helps friends to stay connected.
+                        </td>
+                        <td>
+                            Select justifications for the main point(s) of the argument (here: <span
+                                class="example-card positive"><span class="selection-mark"></span> have a sense of belonging</span>
+                            from staying connected). But do <b>not</b> select justifications that need further reasoning
+                            <nobr>(<span class="example-card negative"><span class="selection-mark"></span> have social recognition</span>
+                            </nobr>
+                            being easier if one has more friends, and one can have more friends through staying
+                            connected) or for supportive expressions
+                            <nobr>(<span class="example-card negative"><span
+                                    class="selection-mark"></span> be helpful</span></nobr>
+                            for "helps friends").
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            Social media allows one to be helpful to friends even if one is not with them.
+                        </td>
+                        <td>
+                            Also select a justification if it is explicitly mentioned in the argument
+                            <nobr>(<span class="example-card positive"><span
+                                    class="selection-mark"></span> be helpful</span>).
+                            </nobr>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            Social media needs to become independent of big companies and their money based influence.
+                        </td>
+                        <td>
+                            Also select a justification if it would concern non-human entities (like "social media"
+                            <nobr><span class="example-card positive"><span class="selection-mark"></span> be independent</span>)
+                            </nobr>
+                            .
+                            But do <b>not</b> select justifications that are present in a negative way
+                            <nobr>(<span class="example-card negative"><span class="selection-mark"></span> have influence</span>,
+                            </nobr>
+                            <span class="example-card negative"><span class="selection-mark"></span> have wealth</span>
+                            for "money based influence").
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            Social media is free, which is especially useful for families that barely get by.
+                        </td>
+                        <td>
+                            There are three justifications closely related to money, but rarely should all three be
+                            selected:
+                            <span class="example-card negative"><span class="selection-mark"></span> have wealth</span>
+                            for being so rich that it gives one power over others;
+                            <span class="example-card positive"><span class="selection-mark"></span> have a comfortable life</span>
+                            for having no pressing financial (or non-financial) worries; and
+                            <span class="example-card negative"><span
+                                    class="selection-mark"></span> have no debts</span> for not having obligations to
+                            return money (or favors).
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+                <p>Example arguments <u>in favor of</u> "Social media should be banned".</p>
+                <table class="table example-table">
+                    <thead>
+                    <tr>
+                        <th>Argument</th>
+                        <th>Justifications</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <td>
+                            Through social media people can spread biased opinions on topics or misinform the general
+                            public.
+                        </td>
+                        <td>
+                            Use the examples for each justification to get a better understanding of the justifications
+                            <nobr>(<span class="example-card positive"><span class="selection-mark"></span> have freedom of thought</span>
+                            </nobr>
+                            from reduced misleading influence on people's thoughts).
+                            But do <b>not</b> select justifications only because they are connected to the topic in
+                            general
+                            <nobr>(<span class="example-card negative"><span class="selection-mark"></span> have privacy</span>
+                            </nobr>
+                            for the general threat of social media to privacy: it is not mentioned here).
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            Social media is a waste of time.
+                        </td>
+                        <td>
+                            In the rare case that no justification fits, suggest a new justification as a comment on the
+                            argument. For example, "good to use what you have (time)". Also write a comment if an
+                            argument makes no sense to you.
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="tasks">
+            <div id="taskTASKID" class="task" data-task="TASKID">
+                <input id='taskTASKID-argumentId' type='hidden' name='taskTASKID-argumentId' value="taskTASKID-id"/>
+
+                <!-- Argument card -->
+                <div id="taskTASKID-argument" class="panel panel-primary" data-task="TASKID">
+                    <div class="panel-heading">
+                        Argument TASKID of <span class="number-of-arguments">X</span>
+                    </div>
+                    <div class="panel-body">
+                        <p>Imagine someone is arguing <u>taskTASKID-stance</u> &quot;taskTASKID-topic&quot; by saying:
+                        </p>
+                        <p>&quot;taskTASKID-text&quot;</p>
+                    </div>
+                </div>
+
+                <!-- Info card -->
+                <div id="value-cardTASKID" class="panel panel-primary reason-panel">
+                    <div class="panel-heading">Justification <span class="value-number">Y</span> of <span
+                            class="value-number-all"></span></div>
+                    <div class="panel-body">
+                        <div class="reason-panel-content">
+                            <div>
+                                <p>
+                                    If asked &quot;Why is that good?&quot;, might this be their justification? &quot;Because
+                                    it is good to <span class="value-text value-highlight">&nbsp;</span>.&quot;
+                                </p>
+                                <p>
+                                    Select <kbd data-value-selection="Y">Y</kbd>es or <kbd
+                                        data-value-selection="N">N</kbd>o below.
+                                </p>
+                                <div class="value-no-description-detail"></div>
+                                <p class="value-description-detail">
+                                    For example, they might give this justification if the argument implies their chosen
+                                    side is better with regard to:
+                                </p>
+                                <ul class="value-description-list"></ul>
+                            </div>
+                            <!-- Comment box - value -->
+                            <div id="taskTASKID-valueComments" class="value-comments-container">
+                                <div id="taskTASKID-valueComments-VALUEID" class="comments input-group value-comments">
+                                    <span class="input-group-addon" id="taskTASKID-valueComments-VALUEID-text">Comments on this justification (optional):</span>
+                                    <input aria-describedby="taskTASKID-valueComments-VALUEID-text" class="form-control"
+                                           name="comments-taskTASKID-VALUEID"
+                                           type="text"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Value suggestions -->
+                <div id="taskTASKID-values" class="panel panel-primary value-suggestions" data-task="TASKID"
+                     data-argument=taskTASKID-id>
+                    <div class="panel-heading">
+                        Might they give this justification? <kbd data-value-selection="Y">Y</kbd>es or <kbd
+                            data-value-selection="N">N</kbd>o. "Because it is good to..."
+                    </div>
+                    <div class="panel-body">
+                        <div class="value-suggestions-list">
+
+                        </div>
+
+                        <!-- Comment box - argument -->
+                        <div class="comments input-group argument-comments">
+                            <span class="input-group-addon"
+                                  id="comments-addon">Comments on this argument (optional):</span>
+                            <input aria-describedby="comments-addon" class="form-control" name="comments-taskTASKID"
+                                   type="text"/>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="bottom-box">
+            <nav class="pagination-container">
+                <!-- pagination -->
+                <ul id="pagination" class="pagination"></ul>
+                <!-- Submit -->
+                <input type='submit' id='submitButton' class='btn btn-primary disabled' value='Complete all tasks'/>
+            </nav>
+        </div>
+        <script type="text/javascript">
+            document.addEventListener("DOMContentLoaded", function () {
+                var pagination = document.getElementById("pagination");
+                var newLink;
+                newLink = document.createElement("li");
+                pagination.appendChild(newLink);
+                newLink.outerHTML = "<li id='go-to-previous-task' class='task-links'><a href='#tasks' onclick='showTask(parseInt(document.querySelector(\".task.active\").getAttribute(\"data-task\")) - 1);activateNextMissingRow();'>Previous</a></li>";
+                for (var task = 1; task <= numTasksPerHit; ++task) {
+                    newLink = document.createElement("li");
+                    pagination.appendChild(newLink);
+                    newLink.outerHTML = "<li id='go-to-task" + task + "' class='task-links'><a href='#tasks' onclick='showTask(" + task + ");activateNextMissingRow();'>" + task + "</a></li>";
+                }
+                newLink = document.createElement("li");
+                pagination.appendChild(newLink);
+                newLink.outerHTML = "<li id='go-to-next-task' class='task-links'><a href='#tasks' onclick='showTask(parseInt(document.querySelector(\".task.active\").getAttribute(\"data-task\")) + 1);activateNextMissingRow();'>Next</a></li>";
+                document.getElementById("go-to-task1").classList.add("active", "visited");
+            });
+        </script>
+    </div>
+</form>
+<script type="text/javascript">turkSetAssignmentID();</script>
+<!-- task functions -->
+<script type="text/javascript">
+    valueList = '{\n' +
+        '  "SDT1": {\n' +
+        '    "name": "be creative",\n' +
+        '    "description": [\n' +
+        '      "allowing for more creativity or imagination",\n' +
+        '      "being more creative",\n' +
+        '      "fostering creativity",\n' +
+        '      "being innovative",\n' +
+        '      "promoting imagination"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "SDT2": {\n' +
+        '    "name": "be curious",\n' +
+        '    "description": [\n' +
+        '      "being the more interesting option",\n' +
+        '      "fostering curiosity",\n' +
+        '      "making people more keen to learn",\n' +
+        '      "promoting discoveries",\n' +
+        '      "sparking interest"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "SDT3": {\n' +
+        '    "name": "have freedom of thought",\n' +
+        '    "description": [\n' +
+        '      "allowing people to figure things out on their own",\n' +
+        '      "allowing people to make up their mind",\n' +
+        '      "resulting in less censorship",\n' +
+        '      "resulting in less influence on people\'s thoughts"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "SDA1": {\n' +
+        '    "name": "be choosing own goals",\n' +
+        '    "description": [\n' +
+        '      "allowing people to choose what is best for them",\n' +
+        '      "allowing people to decide on their life",\n' +
+        '      "allowing people to follow their dreams"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "SDA2": {\n' +
+        '    "name": "be independent",\n' +
+        '    "description": [\n' +
+        '      "allowing people to plan on their own",\n' +
+        '      "resulting in fewer times people have to ask for consent"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "SDA3": {\n' +
+        '    "name": "have freedom of action",\n' +
+        '    "description": [\n' +
+        '      "allowing people to be self-determined",\n' +
+        '      "allowing people to do things even though this may hurt them in the long run",\n' +
+        '      "resulting in more times people can do what they want"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "SDA4": {\n' +
+        '    "name": "have privacy",\n' +
+        '    "description": [\n' +
+        '      "allowing for private spaces",\n' +
+        '      "allowing for time alone",\n' +
+        '      "resulting in less surveillance",\n' +
+        '      "resulting in more control on what to disclose and to whom"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "STI1": {\n' +
+        '    "name": "have an exciting life",\n' +
+        '    "description": [\n' +
+        '      "allowing people to experience foreign places",\n' +
+        '      "providing perspective-changing experiences",\n' +
+        '      "providing special activities"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "STI2": {\n' +
+        '    "name": "have a varied life",\n' +
+        '    "description": [\n' +
+        '      "allowing people to change parts of their life",\n' +
+        '      "allowing people to move flat easily",\n' +
+        '      "promoting local clubs (sports, ...)",\n' +
+        '      "providing many activities"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "STI3": {\n' +
+        '    "name": "be daring",\n' +
+        '    "description": [\n' +
+        '      "allowing for risky actions",\n' +
+        '      "allowing to take risks",\n' +
+        '      "being more risky",\n' +
+        '      "fostering risk-taking"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "HED1": {\n' +
+        '    "name": "have pleasure",\n' +
+        '    "description": [\n' +
+        '      "making life enjoyable",\n' +
+        '      "providing leisure",\n' +
+        '      "providing opportunities to have fun",\n' +
+        '      "providing sensuous gratification"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "ACH1": {\n' +
+        '    "name": "be ambitious",\n' +
+        '    "description": [\n' +
+        '      "allowing for ambitions",\n' +
+        '      "being more ambitious",\n' +
+        '      "fostering ambition",\n' +
+        '      "providing incentives for the difficult climb up the social ladder"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "ACH2": {\n' +
+        '    "name": "have success",\n' +
+        '    "description": [\n' +
+        '      "allowing for success",\n' +
+        '      "being more successful",\n' +
+        '      "recognizing achievements"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "ACH3": {\n' +
+        '    "name": "be capable",\n' +
+        '    "description": [\n' +
+        '      "allowing to acquire competence in certain tasks",\n' +
+        '      "being more effective",\n' +
+        '      "resulting in a higher effectivity",\n' +
+        '      "showing competence in solving tasks"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "ACH4": {\n' +
+        '    "name": "be intellectual",\n' +
+        '    "description": [\n' +
+        '      "allowing to acquire high cognitive skills",\n' +
+        '      "being more reflective",\n' +
+        '      "resulting in more reflective behavior",\n' +
+        '      "showing intelligence"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "ACH5": {\n' +
+        '    "name": "be courageous",\n' +
+        '    "description": [\n' +
+        '      "being more courageous",\n' +
+        '      "fostering courage",\n' +
+        '      "making people stand up for their beliefs",\n' +
+        '      "promoting courage",\n' +
+        '      "showing courage"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "POD1": {\n' +
+        '    "name": "have influence",\n' +
+        '    "description": [\n' +
+        '      "having more people to ask for a favor",\n' +
+        '      "resulting in more influence",\n' +
+        '      "resulting in more obligations towards the own side",\n' +
+        '      "resulting in more ways to control events"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "POD2": {\n' +
+        '    "name": "have the right to command",\n' +
+        '    "description": [\n' +
+        '      "allowing experts to tell others what to do",\n' +
+        '      "allowing people to take command",\n' +
+        '      "fostering leadership",\n' +
+        '      "resulting in clearer hierarchies of command"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "POR1": {\n' +
+        '    "name": "have wealth",\n' +
+        '    "no_description": {\n' +
+        '      "description": "lacking the money for a decent living or some non-luxury item being too expensive",\n' +
+        '      "value": "have a comfortable life"\n' +
+        '    },\n' +
+        '    "description": [\n' +
+        '      "allowing people to gain wealth",\n' +
+        '      "allowing to show one\'s wealth",\n' +
+        '      "allowing to use money for power",\n' +
+        '      "providing people with resources to control events",\n' +
+        '      "resulting in financial prosperity"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "FAC1": {\n' +
+        '    "name": "have social recognition",\n' +
+        '    "description": [\n' +
+        '      "allowing people to gain respect",\n' +
+        '      "avoiding humiliation",\n' +
+        '      "providing social recognition for actions"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "FAC2": {\n' +
+        '    "name": "have a good reputation",\n' +
+        '    "description": [\n' +
+        '      "allowing people to build up their reputation",\n' +
+        '      "protecting one\'s public image",\n' +
+        '      "spreading reputation"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "SEP1": {\n' +
+        '    "name": "have a sense of belonging",\n' +
+        '    "description": [\n' +
+        '      "allowing people to establish groups",\n' +
+        '      "allowing people to join groups and show their group membership",\n' +
+        '      "allowing group members to show they care for each other",\n' +
+        '      "fostering a sense of belonging",\n' +
+        '      "resulting in fewer people forced to leave their groups"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "SEP2": {\n' +
+        '    "name": "have good health",\n' +
+        '    "description": [\n' +
+        '      "avoiding diseases",\n' +
+        '      "preserving health",\n' +
+        '      "being alive",\n' +
+        '      "having physiological and mental well-being",\n' +
+        '      "fostering activities to stay healthy",\n' +
+        '      "resulting in increased health"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "SEP3": {\n' +
+        '    "name": "have no debts",\n' +
+        '    "description": [\n' +
+        '      "avoiding indebtedness",\n' +
+        '      "having people always return a favor",\n' +
+        '      "reciprocating favors"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "SEP4": {\n' +
+        '    "name": "be neat and tidy",\n' +
+        '    "description": [\n' +
+        '      "allowing to clean up",\n' +
+        '      "being more clean or orderly",\n' +
+        '      "promoting cleanliness or neatness",\n' +
+        '      "resulting in higher cleanliness"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "SEP5": {\n' +
+        '    "name": "have a comfortable life",\n' +
+        '    "description": [\n' +
+        '      "providing subsistence income",\n' +
+        '      "resulting in having no financial worries",\n' +
+        '      "resulting in a higher general happiness",\n' +
+        '      "resulting in a prosperous life"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "SES1": {\n' +
+        '    "name": "have a safe country",\n' +
+        '    "description": [\n' +
+        '      "caring for citizens",\n' +
+        '      "resulting in a state that can better act on crimes",\n' +
+        '      "resulting in a state that can better defend its citizens",\n' +
+        '      "resulting in a state that takes better care of its citizens",\n' +
+        '      "resulting in a stronger state"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "SES2": {\n' +
+        '    "name": "have a stable society",\n' +
+        '    "description": [\n' +
+        '      "accepting or maintaining the existing social structure",\n' +
+        '      "preventing chaos and disorder",\n' +
+        '      "promoting the social order",\n' +
+        '      "resulting in a country that is more stable"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "TRA1": {\n' +
+        '    "name": "be respecting traditions",\n' +
+        '    "description": [\n' +
+        '      "allowing to follow one\'s family\'s customs",\n' +
+        '      "honoring traditional practices",\n' +
+        '      "maintaining traditional values and ways of thinking",\n' +
+        '      "promoting the preservation of customs"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "TRA2": {\n' +
+        '    "name": "be holding religious faith",\n' +
+        '    "description": [\n' +
+        '      "allowing to devote one\'s life to their faith",\n' +
+        '      "allowing the customs of a religion",\n' +
+        '      "being more adequate for a certain religion",\n' +
+        '      "promoting piety",\n' +
+        '      "spreading a religion"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "COR1": {\n' +
+        '    "name": "be compliant",\n' +
+        '    "description": [\n' +
+        '      "abiding to laws or rules",\n' +
+        '      "promoting to meet one\'s obligations",\n' +
+        '      "recognizing people who abide to laws or rules"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "COR2": {\n' +
+        '    "name": "be self-disciplined",\n' +
+        '    "description": [\n' +
+        '      "fostering to exercise restraint",\n' +
+        '      "fostering to follow rules even when no-one is watching",\n' +
+        '      "fostering to set rules for oneself"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "COR3": {\n' +
+        '    "name": "be behaving properly",\n' +
+        '    "description": [\n' +
+        '      "avoiding to violate informal rules or social conventions",\n' +
+        '      "fostering good manners",\n' +
+        '      "resulting in more people minding their manners"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "COI1": {\n' +
+        '    "name": "be polite",\n' +
+        '    "description": [\n' +
+        '      "avoiding to upset other people",\n' +
+        '      "promoting to take others into account",\n' +
+        '      "resulting in being less annoying for others"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "COI2": {\n' +
+        '    "name": "be honoring elders",\n' +
+        '    "description": [\n' +
+        '      "fostering that children follow their parents",\n' +
+        '      "showing faith and respect towards one\'s elders"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "HUM1": {\n' +
+        '    "name": "be humble",\n' +
+        '    "description": [\n' +
+        '      "demoting arrogance",\n' +
+        '      "demoting to think one deserves more than other people",\n' +
+        '      "emphasizing the successful group over single persons",\n' +
+        '      "fostering to give back to society for the opportunities one got",\n' +
+        '      "fostering to not brag about what one achieved"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "HUM2": {\n' +
+        '    "name": "have life accepted as is",\n' +
+        '    "description": [\n' +
+        '      "allowing people to accept their fate",\n' +
+        '      "fostering to submit to life\'s circumstances",\n' +
+        '      "promoting satisfaction with what one has",\n' +
+        '      "showing acceptance of one\'s own portion in life"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "BEC1": {\n' +
+        '    "name": "be helpful",\n' +
+        '    "description": [\n' +
+        '      "allowing to help the people in one\'s group",\n' +
+        '      "being more helpful to those one cares for",\n' +
+        '      "fostering a readiness to help each other",\n' +
+        '      "promoting to work for the welfare of others in one group"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "BEC2": {\n' +
+        '    "name": "be honest",\n' +
+        '    "description": [\n' +
+        '      "being more honest",\n' +
+        '      "fostering honest ways of thinking",\n' +
+        '      "promoting honesty",\n' +
+        '      "recognizing people for their honesty",\n' +
+        '      "resulting in more honest social interaction"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "BEC3": {\n' +
+        '    "name": "be forgiving",\n' +
+        '    "description": [\n' +
+        '      "allowing people to forgive each other",\n' +
+        '      "giving people a second chance",\n' +
+        '      "being merciful",\n' +
+        '      "promoting a will to pardon others",\n' +
+        '      "providing paths to redemption"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "BEC4": {\n' +
+        '    "name": "have the own family secured",\n' +
+        '    "description": [\n' +
+        '      "allowing people to protect their family",\n' +
+        '      "promoting to have a family",\n' +
+        '      "providing care for one\'s family"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "BEC5": {\n' +
+        '    "name": "be loving",\n' +
+        '    "description": [\n' +
+        '      "allowing to place the well-being of others above the own well-being",\n' +
+        '      "allowing to show one\'s affection, compassion and sympathy",\n' +
+        '      "fostering close relationships",\n' +
+        '      "promoting self-respect and self-love as a means of care for oneself",\n' +
+        '      "promoting to concern oneself with the needs of dear ones"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "BED1": {\n' +
+        '    "name": "be responsible",\n' +
+        '    "description": [\n' +
+        '      "allowing for clear responsibilities",\n' +
+        '      "fostering dependability",\n' +
+        '      "promoting reliability",\n' +
+        '      "resulting in more people being confident",\n' +
+        '      "taking responsibility"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "BED2": {\n' +
+        '    "name": "have loyalty towards friends",\n' +
+        '    "description": [\n' +
+        '      "being a dependable and trustworthy friend",\n' +
+        '      "foster loyalty towards friends",\n' +
+        '      "promoting to give friends a full backing"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "UNC1": {\n' +
+        '    "name": "have equality",\n' +
+        '    "description": [\n' +
+        '      "fostering people of a lower social status",\n' +
+        '      "helping poorer regions of the world",\n' +
+        '      "providing all people with equal opportunities in life",\n' +
+        '      "resulting in a world were success is less determined by birth"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "UNC2": {\n' +
+        '    "name": "be just",\n' +
+        '    "description": [\n' +
+        '      "allowing justice to be \'blind\' to irrelevant aspects of a case",\n' +
+        '      "fostering a sense for justice",\n' +
+        '      "promoting fairness in competitions",\n' +
+        '      "protecting the weak and vulnerable in society",\n' +
+        '      "resulting a world were people are less discriminated based on race, gender, ..."\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "UNC3": {\n' +
+        '    "name": "have a world at peace",\n' +
+        '    "description": [\n' +
+        '      "allowing for nations to cease fire",\n' +
+        '      "avoiding conflicts",\n' +
+        '      "fostering to see peace as fragile and precious",\n' +
+        '      "promoting to end wars",\n' +
+        '      "resulting in more people caring for all of humanity"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "UNN1": {\n' +
+        '    "name": "be protecting the environment",\n' +
+        '    "description": [\n' +
+        '      "avoiding pollution",\n' +
+        '      "fostering to care for nature",\n' +
+        '      "promoting programs to restore nature",\n' +
+        '      "resulting in less damage to the ecosystem"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "UNN2": {\n' +
+        '    "name": "have harmony with nature",\n' +
+        '    "description": [\n' +
+        '      "allowing to avoid chemicals (especially in nutrition)",\n' +
+        '      "allowing to avoid genetically modified organisms",\n' +
+        '      "fostering to treat animals or plants like them having souls",\n' +
+        '      "promoting a life in harmony with nature",\n' +
+        '      "resulting in more people reflecting the consequences of their actions towards the environment"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "UNN3": {\n' +
+        '    "name": "have a world of beauty",\n' +
+        '    "description": [\n' +
+        '      "allowing people to experience art",\n' +
+        '      "fostering to stand in awe of nature",\n' +
+        '      "promoting fine arts",\n' +
+        '      "promoting the beauty of nature",\n' +
+        '      "spreading beauty"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "UNT1": {\n' +
+        '    "name": "be broadminded",\n' +
+        '    "description": [\n' +
+        '      "allowing for discussion between groups",\n' +
+        '      "clearing up with prejudices",\n' +
+        '      "fostering to listen to and understand people who are different from oneself",\n' +
+        '      "promoting tolerance towards all kinds of people and groups",\n' +
+        '      "promoting to life within a different group for some time"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "UNT2": {\n' +
+        '    "name": "have the wisdom to accept others",\n' +
+        '    "description": [\n' +
+        '      "allowing people to accept disagreements",\n' +
+        '      "fostering to accept people even when one disagrees with them",\n' +
+        '      "promoting a mature understanding of different opinions",\n' +
+        '      "resulting in fewer partisans or fanatics"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "UNO1": {\n' +
+        '    "name": "be logical",\n' +
+        '    "description": [\n' +
+        '      "being better by the numbers but not by gut feeling",\n' +
+        '      "fostering a rational way of thinking",\n' +
+        '      "promoting focus and consistency",\n' +
+        '      "promoting the rational analysis of circumstances",\n' +
+        '      "promoting the scientific method"\n' +
+        '    ]\n' +
+        '  },\n' +
+        '  "UNO2": {\n' +
+        '    "name": "have an objective view",\n' +
+        '    "description": [\n' +
+        '      "fostering to seek the truth",\n' +
+        '      "fostering to take on a neutral perspective",\n' +
+        '      "promoting to form an unbiased opinion",\n' +
+        '      "providing people with the means to make informed decisions",\n' +
+        '      "weighing all pros and cons"\n' +
+        '    ]\n' +
+        '  }\n' +
+        '}\n';
+
+    values = JSON.parse(valueList);
+</script>
+<script type="text/javascript">
+    let currentTask = 1;
+
+    Array.from(document.querySelectorAll(".number-of-arguments")).forEach(
+        element => element.textContent = String(numTasksPerHit));
+    Array.from(document.querySelectorAll(".value-number-all")).forEach(
+        element => element.textContent = String(Object.keys(values).length));
+
+    const valueIds = new Set();
+
+    Object.keys(values).forEach(valueKey => valueIds.add(valueKey));
+
+    const valueEntries = [];
+    Array.from(valueIds).forEach(valueId => valueEntries.push({"id": valueId, "value": getValue(valueId)}));
+    // Shuffled sorting
+    shuffle(valueEntries);
+
+    const valueSuggestionsList = document.querySelector(".value-suggestions-list");
+    let valueCounter = 1;
+    const commentBoxContainer = document.getElementById("taskTASKID-valueComments");
+    const commentBoxPrototype = document.querySelector("#taskTASKID-valueComments .comments");
+    valueEntries.forEach(valueEntry => {
+        const row = createValueSuggestion("TASKID", valueEntry.id, valueEntry.value, valueCounter);
+        const commentBox = document.createElement("div");
+        commentBoxContainer.appendChild(commentBox);
+        commentBox.outerHTML = commentBoxPrototype.outerHTML.replace(/VALUEID/g, valueEntry.id);
+        valueSuggestionsList.appendChild(row);
+        valueCounter++;
+    });
+    commentBoxContainer.removeChild(commentBoxPrototype);
+
+    // Create log element
+    const logElement = document.createElement("input");
+    document.querySelector("form").appendChild(logElement);
+    logElement.setAttribute("name", "log");
+    logElement.setAttribute("id", "log");
+    logElement.setAttribute("type", "hidden");
+
+    log(hit);
+    log(annotatorId);
+
+    // Create tasks
+    document.addEventListener("DOMContentLoaded", function () {
+        var tasks = document.getElementById("tasks");
+        var taskPrototype = document.getElementById("taskTASKID");
+        var newTask;
+        for (let i = 1; i <= numTasksPerHit; ++i) {
+            const taskContent = taskArray[i - 1];
+
+            newTask = document.createElement("div");
+            tasks.appendChild(newTask);
+            newTask.outerHTML = taskPrototype.outerHTML.replace(/HITID/g, hit).replace(/TASKID/g, i)
+                .replace("task" + i + "-id", taskContent.id)
+                .replace("task" + i + "-topic", taskContent.topic)
+                .replace("task" + i + "-stance", taskContent.stance)
+                .replace("task" + i + "-text", taskContent.text);
+        }
+        tasks.removeChild(taskPrototype);
+        document.getElementById("task1").classList.add("active");
+
+        logTaskChange(1);
+        log("document=loaded");
+
+        checkCompletionAll();
+
+        // Find first unfinished task
+        let t = 1;
+        while (t < numTasksPerHit && isCompleted(t)) {
+            ++t;
+        }
+        showTask(t);
+        activateNextMissingRow(false);
+        document.getElementById("main").focus();
+    });
+
+    /* Key-Handler */
+
+    document.addEventListener("DOMContentLoaded", function () {
+        const keysdown = {};
+
+        // Load previous annotations
+
+        // Event-Handler: Y- and N-button
+        Array.from(document.querySelectorAll(".value-suggestion kbd"))
+            .forEach(element => element.addEventListener("click", handleMouseClick));
+
+        // Event-Handler: Comment field (argument)
+        Array.from(document.querySelectorAll(".value-suggestions .argument-comments input"))
+            .forEach(element => element.onfocus = function () {
+                activateRow(null);
+            });
+
+        // Event-Handler: Comment field (values)
+        const valueCommentBoxes = Array.from(document.querySelectorAll(".value-comments-container .value-comments input"));
+        valueCommentBoxes.forEach(element => element.onfocus = function () {
+            keysdown["valueCommentLock"] = true;
+        });
+        valueCommentBoxes.forEach(element => element.onblur = function () {
+            delete keysdown["valueCommentLock"]
+        });
+
+        // Event-Handler: Value suggestion card
+        Array.from(document.querySelectorAll(".value-suggestion .value-card-text")).forEach(value_card => {
+            value_card.addEventListener('click', () => {
+                activateRow(value_card.parentNode);
+            });
+        });
+
+        // Map iOS Command key onto control key
+        document.addEventListener("keydown", function (event) {
+            if (event.defaultPrevented) {
+                return; // Do nothing if event already handled
+            }
+            // iOS Command key at: Opera, Safari/Chrome (left & right), Firefox
+            if (event.keyCode === 17 || event.keyCode === 91 || event.keyCode === 93 || event.keyCode === 224) {
+                keysdown['Control'] = true;
+                event.preventDefault();
+            }
+        });
+        document.addEventListener("keyup", function (event) {
+            if (event.defaultPrevented) {
+                return; // Do nothing if event already handled
+            }
+            // iOS Command key at: Opera, Safari/Chrome (left & right), Firefox
+            if (event.keyCode === 17 || event.keyCode === 91 || event.keyCode === 93 || event.keyCode === 224) {
+                delete keysdown['Control'];
+                event.preventDefault();
+            }
+        });
+
+        document.addEventListener('keydown', evt => {
+                if (evt.defaultPrevented) {
+                    return; // Do nothing if event already handled
+                }
+                const activeRow = document.querySelector(".task.active .value-suggestion.active");
+                switch (evt.key) {
+                    case "Control":
+                        evt.preventDefault();
+                        if (!(evt.key in keysdown)) {
+                            keysdown[evt.key] = true;
+                        }
+                        break;
+                    case "ArrowUp":
+                        evt.preventDefault();
+                        if ("Control" in keysdown) {
+                            if (currentTask > 1) {
+                                showTask(currentTask - 1);
+                                activateNextMissingRow();
+                            }
+                        } else {
+                            if (activeRow !== null) {
+                                document.querySelector(".task.active input[name='comments-task" + currentTask + "']").blur();
+                                const prev = activeRow.previousSibling;
+                                if (prev !== null) {
+                                    activateRow(prev);
+                                }
+                            } else {
+                                document.querySelector(".task.active input[name='comments-task" + currentTask + "']").blur();
+                                const rows = document.querySelectorAll(".task.active .value-suggestion");
+                                activateRow(rows[rows.length - 1]);
+                            }
+                        }
+                        break;
+                    case "ArrowDown":
+                        evt.preventDefault();
+                        if ("Control" in keysdown) {
+                            if (currentTask < numTasksPerHit) {
+                                showTask(currentTask + 1);
+                                activateNextMissingRow();
+                            }
+                        } else {
+                            activateNextRow();
+                        }
+                        break;
+                    case "y":
+                    case "ArrowLeft":
+                        if ("valueCommentLock" in keysdown) {
+                            break;
+                        }
+                        if (!(evt.key in keysdown) && activeRow !== null) {
+                            evt.preventDefault();
+                            keysdown[evt.key] = true;
+                            const keyButton = activeRow.querySelector("kbd[data-value-selection='Y']");
+                            keyButton.classList.add("hover");
+                            keyButton.click();
+                        }
+                        break;
+                    case "n":
+                    case "ArrowRight":
+                        if ("valueCommentLock" in keysdown) {
+                            break;
+                        }
+                        if (!(evt.key in keysdown) && activeRow !== null) {
+                            evt.preventDefault();
+                            keysdown[evt.key] = true;
+                            const keyButton = activeRow.querySelector("kbd[data-value-selection='N']");
+                            keyButton.classList.add("hover");
+                            keyButton.click();
+                        }
+                        break;
+                }
+            }
+        );
+
+        document.addEventListener('keyup', evt => {
+            if (evt.defaultPrevented) {
+                return; // Do nothing if event already handled
+            }
+            let keyButton;
+            switch (evt.key) {
+                case "ArrowLeft":
+                case "y":
+                    keyButton = document.querySelector("kbd.hover[data-value-selection='Y']");
+                    if (keyButton !== null) {
+                        keyButton.classList.remove("hover");
+                    }
+                    break;
+                case "ArrowRight":
+                case "n":
+                    keyButton = document.querySelector("kbd.hover[data-value-selection='N']");
+                    if (keyButton !== null) {
+                        keyButton.classList.remove("hover");
+                    }
+                    break;
+            }
+            delete keysdown[evt.key]; // based on https://stackoverflow.com/a/40551573
+        });
+
+        function handleMouseClick(evt) {
+            evt.preventDefault();
+            const activeRow = document.querySelector(".task.active .value-suggestion.active");
+            const keyButton = evt.target;
+            const value_selection = keyButton.getAttribute("data-value-selection");
+
+            // Handle event
+            const mark = evt.target;
+            const value = mark.getAttribute("data-value-selection");
+            if (value !== null) {
+                mark.nextSibling.checked = true;
+
+                const suggestion = mark.closest(".value-suggestion");
+                suggestion.classList.remove((value === 'Y' ? "negative" : "positive"));
+                suggestion.classList.add((value === 'Y' ? "positive" : "negative"));
+
+                const otherMark = suggestion.querySelector("kbd[data-value-selection='" + (value === 'Y' ? 'N' : 'Y') + "']");
+                otherMark.nextSibling.checked = false;
+
+                checkCompletion(currentTask);
+            }
+
+            // Handle row activation
+            if (activeRow !== null &&
+                activeRow.querySelector("kbd[data-value-selection='" + value_selection + "']") === keyButton) {
+                activateNextRow();
+            }
+        }
+    });
+
+    /* Value suggestions */
+
+    function getValue(valueId) {
+        const value = values[valueId];
+        if (value === undefined) {
+            console.log("No such value: " + valueId);
+        }
+        return value;
+    }
+
+    function createValueSuggestion(taskId, valueId, value = getValue(valueId), valueNumber = 1) {
+        const row = document.createElement("div");
+        row.classList.add("value-suggestion")
+        row.setAttribute("data-value-id", valueId);
+        row.setAttribute("data-value-number", valueNumber);
+
+        // Add display for selection
+        const selectionDisplayCell = document.createElement("span");
+        row.appendChild(selectionDisplayCell);
+        const mark = document.createElement("span");
+        selectionDisplayCell.appendChild(mark);
+        mark.classList.add("selection-mark");
+
+        // Add description
+        const valueNameCell = document.createElement("span");
+        valueNameCell.classList.add("value-card-text");
+        valueNameCell.innerText = value["name"];
+        row.appendChild(valueNameCell);
+
+        // Add selection options
+        row.appendChild(makeValueSuggestionOptionCell(taskId, valueId, "suitable"));
+        row.appendChild(makeValueSuggestionOptionCell(taskId, valueId, "not-suitable", false));
+        row.appendChild(document.createElement("span"));
+
+        return row;
+    }
+
+    function makeValueSuggestionOptionCell(taskId, valueId, value, yesOption = true) {
+        const cell = document.createElement("span");
+        const option = document.createElement("kbd");
+        cell.appendChild(option);
+        option.innerText = (yesOption ? 'Y' : 'N');
+        option.setAttribute("data-value-selection", (yesOption ? 'Y' : 'N'));
+        const radio = document.createElement("input");
+        radio.setAttribute("type", "radio");
+        radio.setAttribute("name", taskId + "-" + valueId);
+        radio.setAttribute("value", value);
+        radio.hidden = true;
+        cell.appendChild(radio);
+        return cell;
+    }
+
+    /* Tasks */
+
+    function showTask(task) {
+        if (currentTask >= 1 && currentTask <= numTasksPerHit) {
+            const previouslyActive = Array.from(document.querySelectorAll(".value-suggestion.active"));
+            previouslyActive.forEach(row => row.classList.remove("active"));
+        }
+        if (task >= 1 && task <= numTasksPerHit) {
+            document.querySelector(".task.active").classList.remove("active");
+            document.querySelector("#task" + task).classList.add("active");
+            document.querySelector(".task-links.active").classList.remove("active");
+            document.querySelector("#go-to-task" + task).classList.add("active", "visited");
+            logTaskChange(task);
+            currentTask = task;
+
+            clearValueCard();
+        }
+        if (task >= numTasksPerHit) {
+            document.getElementById("go-to-next-task").classList.add("disabled");
+            document.getElementById("go-to-previous-task").classList.remove("disabled");
+        } else if (task <= 1) {
+            document.getElementById("go-to-next-task").classList.remove("disabled");
+            document.getElementById("go-to-previous-task").classList.add("disabled");
+        } else {
+            document.getElementById("go-to-next-task").classList.remove("disabled");
+            document.getElementById("go-to-previous-task").classList.remove("disabled");
+        }
+    }
+
+    function clearValueCard() {
+        const valueNumber = document.querySelector("#value-card" + currentTask + " .value-number");
+        valueNumber.textContent = "X";
+
+        const panelBody = document.querySelector("#value-card" + currentTask + " .panel-body");
+        panelBody.style.display = 'none';
+        const activeComment = document.querySelector(".task.active .value-comments.active");
+        if (activeComment !== null) {
+            activeComment.querySelector("input").blur();
+            activeComment.classList.remove("active");
+        }
+    }
+
+
+    function getNextMissingRowOnTask() {
+        const hadPreviouslyActive = document.querySelector(".task.active .value-suggestion.active") !== null;
+        const candidates = hadPreviouslyActive
+            ? document.querySelectorAll(".task.active .value-suggestion.active ~ .value-suggestion")
+            : document.querySelectorAll(".task.active .value-suggestion");
+        for (let c = 0; c < candidates.length; ++c) {
+            const candidate = candidates[c];
+            if (candidate.querySelector("input[type='radio']:checked") === null) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    function activateNextMissingRow(scroll = true) {
+        const candidate = getNextMissingRowOnTask();
+        if (candidate !== null) {
+            activateRow(candidate, null, scroll);
+            return;
+        }
+        // no row left on task
+        const activeRow = document.querySelector(".task.active .value-suggestion.active");
+        if (activeRow !== null) {
+            activeRow.classList.remove("active");
+            clearValueCard();
+        }
+        document.querySelector(".task.active input[name='comments-task" + currentTask + "']").focus();
+    }
+
+    function activateNextRow(addClass = null) {
+        const activeRow = document.querySelector(".task.active .value-suggestion.active");
+        if (activeRow !== null) {
+            const next = activeRow.nextSibling;
+            if (next !== null) {
+                activateRow(next, addClass);
+            } else {
+                activeRow.classList.remove("active");
+                clearValueCard();
+                document.querySelector(".task.active input[name='comments-task" + currentTask + "']").focus();
+            }
+        } else if (currentTask < numTasksPerHit) {
+            showTask(currentTask + 1);
+            activateNextMissingRow();
+        }
+    }
+
+    function activateRow(row, addClass = null, scroll = true) {
+        // MouseEvent focus for comment on same task
+        if (row === null) {
+            const activeRow = document.querySelector(".task.active .value-suggestion.active");
+            if (activeRow !== null) {
+                activeRow.classList.remove("active");
+            }
+            clearValueCard();
+            document.querySelector(".task.active input[name='comments-task" + currentTask + "']").focus();
+            return;
+        }
+        // Selection of comment on previous task
+        if (row.classList === undefined) {
+            if (currentTask > 1) {
+                showTask(currentTask - 1);
+                clearValueCard();
+                document.querySelector(".task.active input[name='comments-task" + currentTask + "']").focus();
+            }
+            return;
+        }
+
+        const previouslyActiveRow = Array.from(document.querySelectorAll(".value-suggestion.active"));
+        previouslyActiveRow.forEach(row => row.classList.remove("active"));
+        const previouslyActiveComment = Array.from(document.querySelectorAll(".task.active .value-comments.active"));
+        previouslyActiveComment.forEach(comment => {
+            comment.querySelector("input").blur();
+            comment.classList.remove("active");
+        });
+
+        row.classList.add("active");
+        document.querySelector("body").classList.remove("last-positive", "last-negative");
+        if (addClass != null) {
+            document.querySelector("body").classList.add(addClass);
+        }
+
+        if (scroll) {
+            document.getElementById("tasks").focus();
+            row.scrollIntoView();
+        }
+
+        // Re-display panel
+        const panelBody = document.querySelector("#value-card" + currentTask + " .panel-body");
+        panelBody.style.display = 'flex';
+
+        const valueId = row.getAttribute("data-value-id");
+        const value = getValue(valueId);
+        const valueNumber = row.getAttribute("data-value-number");
+
+        const valueNumberDisplay = document.querySelector("#value-card" + currentTask + " .value-number");
+        valueNumberDisplay.textContent = valueNumber
+
+        const valueShortText = document.querySelector("#value-card" + currentTask + " .value-text");
+        valueShortText.textContent = value.name;
+
+        // Display value comment box
+        const commentBox = document.querySelector(".task.active #task" + currentTask + "-valueComments-" + valueId);
+        commentBox.classList.add("active");
+
+        // Re-display value description detail
+        const descriptionDetail = document.querySelector("#value-card" + currentTask + " .value-description-detail");
+        descriptionDetail.style.display = 'block';
+
+        // Update no-description
+        const noDescriptionDetail = panelBody.querySelector("div.value-no-description-detail");
+        noDescriptionDetail.innerHTML = '';
+
+        const noDescription = value.no_description;
+        if (noDescription !== undefined) {
+            const paragraph = document.createElement("p");
+            noDescriptionDetail.appendChild(paragraph);
+
+            paragraph.innerHTML = "This justification does <b>not</b> refer to " + noDescription.description +
+                ". In this case select <i>" + noDescription.value + "</i>.";
+        }
+
+        // Clear previous description
+        const descriptionList = document.querySelector("#value-card" + currentTask + " .value-description-list");
+        descriptionList.innerHTML = '';
+
+        // Insert new description
+        for (const i in value.description) {
+            const item = document.createElement("li");
+            descriptionList.appendChild(item);
+            item.textContent = value.description[i];
+        }
+
+        if (value.description.length === 0) {
+            descriptionDetail.style.display = 'none';
+        }
+
+    }
+
+    /* Completion */
+
+    function isCompleted(task) {
+
+        const taskCard = document.querySelector("#task" + task);
+        const numRadios = taskCard.querySelectorAll("input[type='radio']").length;
+        const numRadiosChecked = taskCard.querySelectorAll("input[type='radio']:checked").length;
+
+        const numRadiosCheckedYes = taskCard.querySelectorAll("input[type='radio'][value='suitable']:checked").length;
+
+        return numRadios === numRadiosChecked * 2;
+        // Change to below line to enforce at least one checked reason
+        // return numRadios === numRadiosChecked * 2 && numRadiosCheckedYes >= 1;
+    }
+
+    function checkCompletion(task) {
+        if (isCompleted(task)) {
+            document.querySelector("#go-to-task" + task).classList.add("completed");
+        } else {
+            document.querySelector("#go-to-task" + task).classList.remove("completed");
+        }
+        checkCompletionAll();
+    }
+
+    function checkCompletionAll() {
+        var submitButton = document.getElementById("submitButton");
+        for (var task = 1; task <= numTasksPerHit; ++task) {
+            if (!isCompleted(task)) {
+                submitButton.classList.add("disabled");
+                submitButton.setAttribute("disabled", "disabled");
+                submitButton.setAttribute("value", "Complete all tasks");
+                return;
+            }
+        }
+        submitButton.classList.remove("disabled");
+        submitButton.removeAttribute("disabled");
+        submitButton.setAttribute("value", "Submit");
+    }
+
+    /* Utilities */
+
+    /**
+     * Shuffles array in place. ES6 version
+     * @param {Array} a An array containing the items.
+     * @see <a href="https://stackoverflow.com/a/6274381" target="_top">Stackoverflow</a>
+     */
+    function shuffle(a) {
+        for (let i = a.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+    }
+
+    /* Logging */
+
+    function log(text, timeOffset = 0) {
+        var time = new Date().getTime() - timeOffset;
+        var oldValue = logElement.getAttribute("value");
+        oldValue = (oldValue === null ? "" : oldValue + "\n");
+        logElement.setAttribute("value", oldValue + time + "\t" + text);
+    }
+
+    function logTaskChange(task) {
+        log("task=" + task + "\targumentId=" + document.getElementById("task" + task + "-argumentId").getAttribute("value"));
+    }
+</script>
+</body>
+</html>
