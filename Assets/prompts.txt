@@ -84,7 +84,7 @@ Zero-shot CoT (0.153 Macro F1):
 
 
 Zero-shot without CoT (0.15 Macro F1):
-# "### VALUE LIST ###\n"
+            # "### VALUE LIST ###\n"
             # "{values_string}\n"
             # "### INSTRUCTIONS ###\n"
             # "For the given policy {policy}, a person expresses the following opinion: {opinion} which is {stance} the "

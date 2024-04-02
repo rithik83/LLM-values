@@ -2,9 +2,7 @@ from langchain.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 import pandas as pd
 from Processing import Processing
-from Evaluation import Evaluation
 from functools import reduce
-import time
 
 
 class Prompting:
@@ -22,21 +20,17 @@ class Prompting:
     @staticmethod
     def zero_shot_prompt(policy, opinion, stance, llm, values, level):
         template = (
-            "Someone is {stance} the idea {policy}, arguing that {opinion}.\n"
-            "You are presented with a multi-level categorization of human values, and tasked with selecting the "
-            "appropriate level 1, 2, 3, 4a and 4b values directly or indirectly implied by the argument made.\n"
-            "The list of human values to choose from:\n"
-            "{values_string}"
-            "Represent your answer as below:\n"
-            "### ANSWER FORMAT GUIDE ###\n"
-            "Level 1 Values: <semicolon separated list of level 1 values>"
-            "Level 2 Values: <semicolon separated list of level 2 values>"
-            "Level 3 Values: <semicolon separated list of level 3 values>"
-            "Level 4A Values: <semicolon separated list of level 4A values>"
-            "Level 4B Values: <semicolon separated list of level 4B values>"
+            "You are an expert in debate, argumentation and moral inclinations."
+            "Someone is {stance} the statement {policy}, arguing that {opinion}."
+            "Your task is to determine the human values that motivate and form the foundation behind the opinion stated."
+            "Choose values from the below list, and do not make up your own values.\n"
+            "{values_string}\n"
+            "Represent your answer as a semicolon separated list of values. Be as selective and precise as possible."
+            "Only choose the human values that very clearly are associated with and align with the premise."
+            "Do not choose irrelevant or barely related values. Be precise and selective."
         )
 
-        values_string = Processing.stringify_values_for_prompt(values)
+        values_string = Processing.stringify_values_for_prompt(values, level)
 
         prompt = PromptTemplate(template=template, input_variables=['opinion', 'policy', 'stance', 'values_string'])
 
@@ -52,58 +46,219 @@ class Prompting:
         return answer
 
     @staticmethod
-    def prompt_for_justifications(example_arguments, llm, values, labels_level1, labels_level2, labels_level3,
-                                  labels_level4a, labels_level4b):
-        arguments = reduce(lambda left, right: pd.merge(left, right, on='Argument ID', how='inner'),
-                           [example_arguments, labels_level1, labels_level2, labels_level3, labels_level4a,
-                            labels_level4b])
+    def few_shot_prompt(policy, opinion, stance, llm, values, level, example_string):
+        template = (
+            "### VALUE LIST ###\n"
+            "{values_string}\n"
+            "{example_string}\n"
+            "Q: Someone is {stance} the idea {policy}, arguing that {opinion}. What are the human values that motivate their opinion?\n"
+            "A: <your selection of values (separated by semicolon) based on the thought process established in past examples>"
+        )
 
-        value_name_list = Processing.get_value_name_list(values)
-        level_1_values = value_name_list["Level 1"]
-        level_2_values = value_name_list["Level 2"]
-        level_3_values = value_name_list["Level 3"]
-        level_4a_values = value_name_list["Level 4A"]
-        level_4b_values = value_name_list["Level 4B"]
+        values_string = Processing.stringify_values_for_prompt(values, level)
 
-        example_string = ""
-
-        for index in range(len(arguments)):
-            policy = arguments.at[index, 'Conclusion']
-            stance = arguments.at[index, 'Stance']
-            opinion = arguments.at[index, 'Premise']
-
-            level_1_values = [value for value in level_1_values if arguments.at[index, value] == 1]
-            level_2_values = [value for value in level_2_values if arguments.at[index, value] == 1]
-            level_3_values = [value for value in level_3_values if arguments.at[index, value] == 1]
-            level_4a_values = [value for value in level_4a_values if arguments.at[index, value] == 1]
-            level_4b_values = [value for value in level_4b_values if arguments.at[index, value] == 1]
-
-
-            example_string += f"Example {index+1}: Someone is {stance} the idea {policy}, arguing that {opinion}.\n " \
-                              "The moral values they directly or indirectly imply are as follows:\n Level 1 Values: " \
-                              ", ".join(level_1_values) + "\n" + "Level 2 Values: " + ", ".join(level_2_values) + \
-                              "\n" + "Level 3 Values: " + ", ".join(level_3_values) + "\nLevel 4A Values: " + \
-                              ", ".join(level_4a_values) + "\nLevel 4B Values: " + ", ".join(level_4b_values) + "\n"
-
-        template = ("Following are examples of arguments made by people, and the moral values that are directly or "
-                    "indirectly implied by them:\n" + example_string + "\n"
-                    "Your task is to come up with justifications for why each of the values have been chosen. "
-                    "Repeat the below answer format for all the examples\n"
-                    "### ANSWER FORMAT GUIDE ###\n"
-                    "Example 1:\n"
-                    "Justification for Level 1 Values: <Your justification for all the level 1 values>"
-                    "Justification for Level 2 Values: <Your justification for all the level 2 values>"
-                    "Justification for Level 3 Values: <Your justification for all the level 3 values>"
-                    "Justification for Level 4A Values: <Your justification for all the level 4A values>"
-                    "Justification for Level 4B Values: <Your justification for all the level 4B values>")
-
-        prompt = PromptTemplate(template = template, input_variables=[])
+        prompt = PromptTemplate(template=template, input_variables=['opinion', 'policy', 'stance', 'values_string',
+                                                                    'example_string'])
 
         runnable = prompt | llm | StrOutputParser()
 
-        answer = runnable.invoke({})
+        answer = runnable.invoke({
+            "opinion": opinion,
+            "policy": policy,
+            "stance": stance,
+            "values_string": values_string,
+            "example_string": example_string
+        })
 
         return answer
+
+    @staticmethod
+    def prompt_for_justifications(policy, opinion, stance, llm, l1_values):
+        template = (
+            "Q: Someone is {stance} the idea {policy}, arguing that {opinion}. The human values demonstrated via their opinion are:\n"
+        )
+        for value in l1_values:
+            template += "Value: " + value["name"] + "\n"
+
+        template += "Your task is to formulate a justification for why each of the values applies to the argument.\n### ANSWER FORMAT GUIDE ###\nValue: <the value>\nJustification: <A justification of maximum two sentences>"
+
+        prompt = PromptTemplate(template=template, input_variables=['opinion', 'policy', 'stance'])
+
+        runnable = prompt | llm | StrOutputParser()
+
+        answer = runnable.invoke({
+            "opinion": opinion,
+            "policy": policy,
+            "stance": stance,
+        })
+
+        return answer
+
+    @staticmethod
+    def prompt_for_justifications_new(examples_string, llm):
+        template = (
+            "{examples_string}"
+            "For each of the examples above, your task is to determine the line of reasoning used to arrive at the values, filling the empty Reasoning: entries."
+            "### ANSWER FORMAT ###"
+            "Q: <the posed argument>"
+            "Value: <the value>"
+            "Reasoning: <maximum 40 words>"
+        )
+
+        prompt = PromptTemplate(template=template, input_variables=['examples_string'])
+
+        runnable = prompt | llm | StrOutputParser()
+
+        answer = runnable.invoke({
+            "examples_string": examples_string
+        })
+
+        return answer
+
+    @staticmethod
+    def few_shot_cot_prompt(policy, opinion, stance, llm, values, example_string):
+        template = (
+            "### VALUE LIST ###\n"
+            "{values_string}\n"
+            "{example_string}"
+            "Q: Someone is {stance} the idea {policy}, arguing that {opinion}"
+        )
+
+        values_string = Processing.stringify_values_for_prompt(values, "Level 1")
+
+        prompt = PromptTemplate(template=template, input_variables=['opinion', 'policy', 'stance', 'values_string',
+                                                                    'example_string'])
+
+        runnable = prompt | llm | StrOutputParser()
+
+        answer = runnable.invoke({
+            "opinion": opinion,
+            "policy": policy,
+            "stance": stance,
+            "values_string": values_string,
+            "example_string": example_string
+        })
+
+        return answer
+
+    @staticmethod
+    def few_shot_cot_sequence(test_arguments, train_arguments, llm, values, labels_level1, num_examples, verbose):
+        test_arguments = reduce(lambda left, right: pd.merge(left, right, on='Argument ID', how='inner'),
+                                [test_arguments, labels_level1])
+
+        train_arguments = reduce(lambda left, right: pd.merge(left, right, on='Argument ID', how='inner'),
+                                 [train_arguments, labels_level1])
+
+        values_dict = Processing.get_values_dict(values)
+        level_1_values = set(value['name'] for value in values_dict["Level 1"])
+
+        predicted_labels = test_arguments.copy()
+        combined_list = []
+        for s in [level_1_values]:
+            combined_list.extend(s)
+        predicted_labels[combined_list] = 0
+
+        for index, row in test_arguments.iterrows():
+            policy = row['Conclusion']
+            stance = row['Stance']
+            opinion = row['Premise']
+
+            if verbose is True:
+                print(f"index: {index}, policy: {policy}, opinion: {opinion}, stance: {stance}", "\n")
+
+            example_arguments = Processing.select_examples_fewshot(train_arguments, values_dict, "Level 1", num_examples)
+            examples_list = []
+
+            for example_index, example_row in example_arguments.iterrows():
+
+                example_policy = example_row['Conclusion']
+                example_stance = example_row['Stance']
+                example_opinion = example_row['Premise']
+                level_1_values = [value for value in [level_1_values] if example_arguments.at[example_index, value] == 1]
+
+                example_overview = {'policy': example_policy, 'opinion': example_opinion, 'stance': example_stance, 'l1_values': level_1_values}
+                examples_list.append(example_overview)
+
+            # Step 1: Prompt with all the examples to gather justifications
+            example_string = Processing.individual_example_prompt_string_cot(examples_list)
+            llm_justifications = Prompting.prompt_for_justifications_new(example_string, llm)
+
+            # With the example_string of all examples, justifications (their chain-of-thought) and their values, prompt for the unseen test set datapoint
+            llm_answer = Prompting.few_shot_cot_prompt(policy, opinion, stance, llm, values, llm_justifications)
+            predicted_values = Processing.parse_values_generated(llm_answer)
+
+            predicted_labels.iloc[index, predicted_labels.columns.isin(predicted_values)] = 1
+
+        combined_list.append("Part")
+        predicted_labels = predicted_labels[combined_list]
+        true_labels = test_arguments[combined_list]
+
+        return predicted_labels, true_labels
+
+    # Performs the few-shot prompting sequence for all the arguments given in as input.
+    # @param test_arguments The arguments to be input to the LLM (test set)
+    # @param train_arguments The train set arguments to be sampled from as examples
+    # @param values The values to be considered
+    # @param llm The Large Language Model used
+    # @param labels_level1 The true labels for level 1 values
+    # @param labels_level2 The true labels for level 2 values
+    # @param labels_level3 The true labels for level 3 values
+    # @param labels_level4a The true labels for level 4a values
+    # @param labels_level4b The true labels for level 4b values
+    # @param num_examples The number of examples to be provided in each prompt
+    # @param verbose Boolean to indicate if print statements are needed
+    # @return Predicted Labels and the arguments with the true labels
+    @staticmethod
+    def few_shot_sequence(test_arguments, train_arguments, values, llm, labels_level1, labels_level2, labels_level3,
+                          labels_level4a, labels_level4b, num_examples, verbose):
+        test_arguments = reduce(lambda left, right: pd.merge(left, right, on='Argument ID', how='inner'),
+                                [test_arguments, labels_level1, labels_level2, labels_level3, labels_level4a, labels_level4b])
+
+        train_arguments = reduce(lambda left, right: pd.merge(left, right, on='Argument ID', how='inner'),
+                                 [train_arguments, labels_level1, labels_level2, labels_level3, labels_level4a, labels_level4b])
+
+        values_dict = Processing.get_values_dict(values)
+
+        level_1_values = set(value['name'] for value in values_dict["Level 1"])
+        level_2_values = values_dict["Level 2"]
+        level_3_values = values_dict["Level 3"]
+        level_4a_values = values_dict["Level 4A"]
+        level_4b_values = values_dict["Level 4B"]
+
+        predicted_labels = test_arguments.copy()
+        combined_list = []
+        for s in [level_1_values, level_2_values, level_3_values, level_4a_values, level_4b_values]:
+            combined_list.extend(s)
+        predicted_labels[combined_list] = 0
+
+        for index, row in test_arguments.iterrows():
+            policy = row['Conclusion']
+            stance = row['Stance']
+            opinion = row['Premise']
+
+            all_predicted_values = []
+
+            if verbose is True:
+                print(f"index: {index}, policy: {policy}, opinion: {opinion}, stance: {stance}", "\n")
+
+            for level in ["Level 1", "Level 2", "Level 3", "Level 4A", "Level 4B"]:
+                example_train_args = Processing.select_examples_fewshot(train_arguments, values_dict, level, num_examples)
+                example_string = Processing.generate_example_string_fewshot(example_train_args, values_dict, level)
+
+                llm_result = Prompting.few_shot_prompt(policy, opinion, stance, llm, values, level, example_string)
+                predicted_values = llm_result.strip().split('; ')
+
+                all_predicted_values.extend(predicted_values)
+
+            print(all_predicted_values)
+            predicted_labels.iloc[index, predicted_labels.columns.isin(all_predicted_values)] = 1
+
+        combined_list.append("Part")
+        predicted_labels = predicted_labels[combined_list]
+        true_labels = test_arguments[combined_list]
+
+        return predicted_labels, true_labels
+
 
     # Performs the zero-shot prompting sequence for all the arguments given in as input.
     # @param arguments The arguments to be input to the LLM
@@ -111,22 +266,20 @@ class Prompting:
     # @param llm The Large Language Model used
     # @param value_labels the true labels
     # @param verbose Boolean to indicate if print statements are needed
-    # @param sleep_time Time to wait between subsequent prompts (for APIs with rate limits)
-    # @param with_cot Boolean to indicate whether to use zero-shot with CoT or without
     # @return Predicted Labels and the arguments with the true labels
     @staticmethod
     def zero_shot_sequence(arguments, values, llm, labels_level1, labels_level2, labels_level3, labels_level4a,
-                           labels_level4b, verbose, with_cot):
+                           labels_level4b, verbose):
 
         arguments = reduce(lambda left, right: pd.merge(left, right, on='Argument ID', how='inner'),
                            [arguments, labels_level1, labels_level2, labels_level3, labels_level4a, labels_level4b])
 
-        value_name_list = Processing.get_value_name_list(values)
-        level_1_values = value_name_list["Level 1"]
-        level_2_values = value_name_list["Level 2"]
-        level_3_values = value_name_list["Level 3"]
-        level_4a_values = value_name_list["Level 4A"]
-        level_4b_values = value_name_list["Level 4B"]
+        values_dict = Processing.get_values_dict(values)
+        level_1_values = set(value['name'] for value in values_dict["Level 1"])
+        level_2_values = values_dict["Level 2"]
+        level_3_values = values_dict["Level 3"]
+        level_4a_values = values_dict["Level 4A"]
+        level_4b_values = values_dict["Level 4B"]
 
         predicted_labels = arguments.copy()
         combined_list = []
@@ -139,21 +292,18 @@ class Prompting:
             stance = arguments.at[index, 'Stance']
             opinion = arguments.at[index, 'Premise']
 
-            if with_cot:
-                llm_result = Prompting.zero_shot_cot_prompt(policy, opinion, stance, llm, values)
-            else:
-                llm_result = Prompting.zero_shot_prompt(policy, opinion, stance, llm, values)
-
-            predicted_values = Processing.extract_values_real(llm_result, with_cot)
+            all_predicted_values = []
 
             if verbose is True:
-                print(f"index: {index}, policy: {policy}, opinion: {opinion}", "\n")
-                print(predicted_values, "\n")
+                print(f"index: {index}, policy: {policy}, opinion: {opinion}, stance: {stance}")
 
-            existing_values = level_1_values.union(level_2_values, level_3_values, level_4a_values, level_4b_values)\
-                              & set().union(*predicted_values.values())
+            for level in ["Level 1", "Level 2", "Level 3", "Level 4A", "Level 4B"]:
+                llm_result = Prompting.zero_shot_prompt(policy, opinion, stance, llm, values, level)
+                predicted_values = llm_result.strip().split('; ')
+                all_predicted_values.extend(predicted_values)
 
-            predicted_labels.iloc[index, predicted_labels.columns.isin(existing_values)] = 1
+            print(all_predicted_values)
+            predicted_labels.iloc[index, predicted_labels.columns.isin(all_predicted_values)] = 1
 
         predicted_labels = predicted_labels[combined_list]
         true_labels = arguments[combined_list]
