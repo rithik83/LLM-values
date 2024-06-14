@@ -13,7 +13,6 @@ class Evaluation:
 
         usa_pred = predicted_labels[predicted_labels["Part"] == "usa"]
         usa_true = true_labels[predicted_labels["Part"] == "usa"]
-        print("usa pred size ", len(usa_pred))
         overview["usa"] = Evaluation.evaluate_part(usa_pred, usa_true, values)
 
         africa_pred = predicted_labels[predicted_labels["Part"] == "africa"]

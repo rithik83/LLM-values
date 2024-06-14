@@ -10,8 +10,6 @@ class Processing:
         pass
 
     # Parses the value file to return the dict of values in the appropriate level
-    # @param values_file The file containing the values JSON
-    # @return dict with values in the appropriate level
     @staticmethod
     def parse_value_file(values_file):
         f = open(values_file)
@@ -67,15 +65,16 @@ class Processing:
         if level == 'Level 1':
             string_for_prompt = Processing.stringify_level1_values(values)
         elif level == 'Level 4B':
-            string_for_prompt = "\"Growth, Anxiety-free\" and \"Self-protection, Anxiety avoidance\". " \
-                                "Note that these are two values in total, not four. "
+            string_for_prompt = "\"Growth, Anxiety-free\" and \"Self-protection, Anxiety avoidance\". Note that " \
+                                "(Growth, Anxiety-free) is altogether one value, and likewise (Self-protection, " \
+                                "Anxiety avoidance) is also altogether one value."
         else:
             string_for_prompt = ", ".join(values) + "\n"
 
         return string_for_prompt
 
     @staticmethod
-    def select_examples_fewshot(args, values_dict, level, num_examples):
+    def select_examples_fewshot(args, values_dict, level, num_examples, random_state):
         target_frequency = num_examples
         subset = pd.DataFrame(columns=args.columns)
 
@@ -88,16 +87,16 @@ class Processing:
             value_subset = args[args[value] == 1]
             while len(value_subset) < target_frequency:
                 value_subset = pd.concat([value_subset, args[args[value] == 1]], ignore_index=True)
-            subset = pd.concat([subset, value_subset.sample(frac=1)[:int(target_frequency)]], ignore_index=True)
+            subset = pd.concat([subset, value_subset.sample(frac=1, random_state=random_state)[:int(target_frequency)]], ignore_index=True)
 
         # Sampling "num_examples" datapoints from the subset dataframe
-        sampled_arguments = subset.sample(num_examples)
+        sampled_arguments = subset.sample(num_examples, random_state=random_state)
 
         # For the values that do not occur in sampled_arguments, adds at least one more example from the subset which includes the value
         for value in value_list:
             num_args_with_value = sampled_arguments[sampled_arguments[value] == 1]
             if len(num_args_with_value) == 0:
-                value_subset = subset[subset[value] == 1].sample(1)
+                value_subset = subset[subset[value] == 1].sample(1, random_state=random_state)
                 sampled_arguments = pd.concat([sampled_arguments, value_subset], ignore_index=True)
 
         sampled_arguments = sampled_arguments.reset_index(drop=True)
@@ -127,8 +126,8 @@ class Processing:
 
             true_values_string = '; '.join(true_values)
 
-            prompt_string += f"Q: Someone is {stance} the idea {policy}, arguing that {opinion}. What are the human " \
-                             f"values that motivate their opinion?\nA: {true_values_string}\n"
+            prompt_string += f"Q: Someone is {stance} the idea {policy}, arguing that {opinion}. What are the " \
+                             f"human values that motivate their opinion?\nA: {true_values_string}\n"
 
         return prompt_string
 
@@ -138,11 +137,12 @@ class Processing:
 
         for example in examples_list:
             template += (
-                f"Q: Someone is {example['stance']} the idea {example['policy']}, arguing that {example['opinion']}\n"
+                f"Q: Someone is {example['stance']} the idea {example['policy']}, arguing that {example['opinion']}. "
+                f"What are the human values that motivate their opinion?\n"
             )
 
-            for value in example['l1_values']:
-                template += "Reasoning:\nValue: " + value['name'] + "\n"
+            for value in example['values']:
+                template += "Reasoning:\nValue: " + value + "\n"
 
         return template
 
@@ -152,7 +152,8 @@ class Processing:
 
         for line in llm_result.split('\n'):
             if line.startswith('Value:'):
-                values.append(line.split(': ')[1].strip())
+                value = line.replace('Value: ', '', 1).strip()
+                values.append(value)
 
         return values
 
